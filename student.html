@@ -1,0 +1,76 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>CampusMind - Student</title>
+<style>
+body{margin:0;font-family:system-ui,sans-serif;background:#0b1224;color:#fff}
+nav{display:flex;gap:6px;align-items:center;padding:10px 14px;background:#101a33;position:sticky;top:0}
+nav b{flex:1}nav a{color:#cbd5ff;text-decoration:none;padding:6px 12px;border-radius:8px;background:#1e2d57;font-size:14px}
+nav a.on{background:#2e9e3f;color:#fff}
+main{max-width:760px;margin:auto;padding:12px}
+section{background:#101a33;border-radius:12px;padding:12px;margin:12px 0}
+h2{margin:0 0 8px;font-size:16px;color:#9db4ff}
+.card{background:#16234a;border-radius:10px;padding:9px 11px;margin:6px 0;font-size:14px;line-height:1.5}
+.tag{display:inline-block;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:700;background:#475569}
+.tag.live{background:#ef4444}.tag.done{background:#2e9e3f}
+button,select,textarea{border:0;border-radius:8px;padding:8px 11px;margin:3px 2px;font-size:14px;background:#2c4a8a;color:#fff}
+textarea{width:calc(100% - 26px);background:#fff;color:#111;min-height:60px}
+button.g{background:#2e9e3f}
+small{color:#9aa7c7}
+</style></head><body>
+<nav><b>CampusMind DSU</b><a class="on" href="/student">Student</a><a href="/admin">Admin</a><a href="/map">3D Map</a></nav>
+<main>
+<section><h2>Events going on now</h2><div id="ev"></div></section>
+<section><h2>Classes</h2><div id="cl"></div></section>
+<section><h2>How to go from one place to another</h2>
+<select id="from"></select> to <select id="to"></select> <button class="g" onclick="go()">Show the way</button>
+<div id="way"></div></section>
+<section><h2>Report a problem on campus</h2>
+<small>Water leak, damage, lights left on, broken equipment... the admin sees it at once.</small><br>
+<select id="pl"></select><select id="cat"><option>water leak</option><option>damage</option><option>lights on</option><option>broken equipment</option><option>other</option></select>
+<textarea id="ptxt" placeholder="Describe the problem (optional)"></textarea>
+<button class="g" onclick="sendP()">Send to admin</button> <span id="pmsg"></span></section>
+</main>
+<script>
+const $=i=>document.getElementById(i);
+const esc=s=>String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+let rooms={},CL=[],open=null,last="",sent=new Set();
+const nm=id=>rooms[id]?rooms[id].name:id;
+async function j(u,o){return (await fetch(u,o)).json()}
+const post=(u,b)=>j(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});
+async function tick(){
+ rooms=await j("/rooms");
+ if(!$("from").options.length){
+  const rl=Object.entries(rooms).map(([k,r])=>`<option value="${k}">${esc(r.name)}</option>`).join("");
+  const all='<option value="gate">Main Gate</option><option value="fountain">Fountain</option>'+rl;
+  $("from").innerHTML=all;$("to").innerHTML=all;$("to").selectedIndex=3;$("pl").innerHTML=rl;
+ }
+ const ev=await j("/events");
+ $("ev").innerHTML=ev.map(e=>`<div class="card"><span class="tag ${e.live?"live":""}">${e.live?"LIVE":"Later"}</span> <b>${esc(e.title)}</b><br>${esc(nm(e.room))} &middot; ${e.start} to ${e.end}</div>`).join("");
+ CL=await j("/classes");const key=JSON.stringify(CL);
+ if(open===null&&key!==last){last=key;render()}
+}
+function render(){
+ $("cl").innerHTML=CL.map(c=>{
+  let b="";
+  if(c.status==="live")b=`<span class="tag live">LIVE NOW</span> <b>${esc(c.subject)}</b><br>${esc(nm(c.room))} &middot; ${esc(c.faculty)}<br>Strength: <b>${c.strength}</b> in class (${c.enrolled} enrolled)`;
+  else if(c.status==="done"){
+   b=`<span class="tag done">COMPLETED</span> <b>${esc(c.subject)}</b><br>${esc(nm(c.room))} &middot; ${esc(c.faculty)} &middot; ${c.enrolled} enrolled<br>`;
+   if(sent.has(c.id))b+="<small>Thanks, your feedback was sent to the admin.</small>";
+   else if(open===c.id)b+=`<select id="rt"><option value="5">5 - Excellent</option><option value="4">4 - Good</option><option value="3">3 - Okay</option><option value="2">2 - Poor</option><option value="1">1 - Very poor</option></select><textarea id="ft" placeholder="Your feedback on the class"></textarea><button class="g" onclick="sendF('${c.id}')">Submit</button><button onclick="open=null;render()">Cancel</button>`;
+   else b+=`<button class="g" onclick="open='${c.id}';render()">Give feedback</button>`;
+  } else b=`<span class="tag">LATER</span> <b>${esc(c.subject)}</b><br>${esc(nm(c.room))} &middot; ${c.start} to ${c.end}`;
+  return `<div class="card">${b}</div>`}).join("");
+}
+async function sendF(id){
+ await post("/feedback",{kind:"class",class_id:id,room:CL.find(c=>c.id===id).room,rating:+$("rt").value,text:$("ft").value});
+ sent.add(id);open=null;render();
+}
+async function go(){
+ const d=await j(`/route?src=${$("from").value}&dst=${$("to").value}`);
+ $("way").innerHTML=d.ok?d.steps.map((s,i)=>`<div class="card">${i+1}. ${esc(s)}</div>`).join(""):esc(d.msg);
+}
+async function sendP(){
+ await post("/feedback",{kind:"problem",room:$("pl").value,category:$("cat").value,text:$("ptxt").value});
+ $("ptxt").value="";$("pmsg").textContent="Sent to the admin. Thank you!";setTimeout(()=>$("pmsg").textContent="",4000);
+}
+tick();setInterval(tick,3000);
+</script></body></html>

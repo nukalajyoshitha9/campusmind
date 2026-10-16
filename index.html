@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>CampusMind - DSU Digital Twin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+html,body{margin:0;height:100%;font-family:system-ui,sans-serif}
+#map{position:absolute;inset:0}
+#panel{position:absolute;top:10px;left:10px;width:310px;max-height:calc(100% - 20px);overflow:auto;background:#101a33ee;color:#fff;border-radius:12px;padding:12px;font-size:14px;z-index:5}
+h2{margin:0 0 8px;font-size:17px} h3{margin:12px 0 6px;font-size:13px;color:#9db4ff}
+button,select,input{border:0;border-radius:8px;padding:7px 10px;margin:2px;background:#2c4a8a;color:#fff;cursor:pointer;font-size:13px}
+input{background:#fff;color:#111;width:calc(100% - 24px);cursor:text}
+button.on{background:#2e9e3f} button.red{background:#c0392b}
+.row{padding:3px 0}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+#toast{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:#101a33;color:#fff;padding:10px 16px;border-radius:10px;z-index:6;display:none}
+#err{background:#7a2a1a;padding:6px 8px;border-radius:8px;margin:6px 0;display:none}
+small{color:#9aa7c7}
+.lbl{background:#101a33dd;color:#fff;padding:3px 8px;border-radius:8px;font:12px system-ui;white-space:nowrap;border:2px solid #2e9e3f;pointer-events:none}
+.pl{background:#ef4444;color:#fff;font:600 13px system-ui;padding:5px 11px;border-radius:10px;white-space:nowrap;box-shadow:0 4px 14px #0008;position:relative;margin-bottom:10px;pointer-events:none}
+.pl:after{content:"";position:absolute;top:100%;left:50%;margin-left:-7px;border:7px solid transparent;border-top-color:#ef4444}
+#alert{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#c0392b;color:#fff;padding:10px 18px;border-radius:10px;font-weight:600;z-index:6;display:none}
+#cbtn{position:absolute;right:16px;bottom:46px;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#22c55e,#0ea5e9);color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:8;box-shadow:0 6px 20px #0009;border:0;padding:0;margin:0}
+#cbtn.pulse{animation:pl 1.2s infinite}
+@keyframes pl{0%{box-shadow:0 0 0 0 #22c55ecc}70%{box-shadow:0 0 0 18px #22c55e00}100%{box-shadow:0 0 0 0 #22c55e00}}
+#cbadge{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;border-radius:10px;background:#ef4444;color:#fff;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 5px}
+#cwin{position:absolute;right:16px;bottom:116px;width:360px;max-width:calc(100% - 32px);height:480px;max-height:calc(100% - 140px);background:linear-gradient(180deg,#0f1d3a,#0a1224);border:1px solid #3b5ea8aa;border-radius:18px;z-index:8;display:none;flex-direction:column;overflow:hidden;box-shadow:0 14px 40px #000b;color:#fff}
+#chead{background:linear-gradient(90deg,#1d4ed8,#0891b2);padding:11px 12px;display:flex;align-items:center;gap:10px}
+#cav{width:36px;height:36px;border-radius:50%;background:#ffffff26;display:flex;align-items:center;justify-content:center;font-size:19px}
+#chead .t{flex:1;font-weight:700;font-size:14px;line-height:1.2}
+#chead .t span{display:flex;align-items:center;gap:5px;font-weight:400;font-size:11px;color:#d7ecff}
+.ld{width:7px;height:7px;border-radius:50%;background:#4ade80;display:inline-block;animation:bl 1.4s infinite}
+@keyframes bl{50%{opacity:.3}}
+#chead i{font-style:normal;cursor:pointer;font-size:17px;padding:2px 5px;border-radius:6px}
+#chead i:hover{background:#ffffff30}
+#cstrip{display:flex;gap:8px;padding:8px 10px;background:#0b1830;border-bottom:1px solid #22345f;font-size:11px;color:#b6c8f0}
+#cstrip div{flex:1;background:#14264a;border-radius:8px;padding:5px 7px;text-align:center}
+#cstrip b{display:block;font-size:14px;color:#fff}
+#cmsgs{flex:1;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:9px}
+.cm{max-width:88%;padding:9px 12px;border-radius:14px;font-size:13px;line-height:1.5;white-space:pre-wrap;animation:pop .25s}
+@keyframes pop{from{transform:translateY(6px);opacity:0}to{transform:none;opacity:1}}
+.cm.u{align-self:flex-end;background:linear-gradient(135deg,#16a34a,#15803d);border-bottom-right-radius:4px}
+.cm.b{align-self:flex-start;background:#1b2c4f;border:1px solid #2b4378;border-bottom-left-radius:4px}
+.cm.a{align-self:flex-start;background:#4a1620;border:1px solid #ef4444;border-bottom-left-radius:4px}
+.cm small{display:block;margin-top:5px;font-size:10px;color:#8fb0ff}
+.cm .ab{display:inline-block;margin:6px 6px 0 0;background:#ef4444;border-radius:8px;padding:5px 9px;font-size:12px;cursor:pointer;border:0;color:#fff}
+.cm .ab.g{background:#16a34a}
+.dots span{display:inline-block;width:7px;height:7px;margin:0 2px;border-radius:50%;background:#8fb0ff;animation:dt 1s infinite}
+.dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
+@keyframes dt{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}
+#cchips{padding:6px 8px 0;display:flex;flex-wrap:wrap}
+#cchips button{background:#1e3a7a;border:1px solid #3b5ea8;font-size:11px;padding:5px 9px;margin:0 5px 5px 0;border-radius:14px}
+#crow{display:flex;gap:6px;padding:8px 10px 10px}
+#crow input{flex:1;width:auto;margin:0;padding:10px 12px;border-radius:20px}
+#crow button{background:linear-gradient(135deg,#22c55e,#0ea5e9);margin:0;padding:0 16px;border-radius:20px;font-weight:600}
+.guide{position:relative;width:44px;height:44px}
+.gi{width:44px;height:44px;border-radius:50%;background:radial-gradient(#9be3ff,#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 0 0 6px #38bdf855,0 0 26px #38bdf8;animation:gf 1.6s infinite ease-in-out}
+@keyframes gf{50%{transform:translateY(-9px)}}
+.gb{position:absolute;bottom:64px;left:50%;transform:translateX(-50%);width:220px;background:#fff;color:#0b1224;padding:8px 11px;border-radius:12px;font:600 12px/1.4 system-ui;box-shadow:0 6px 18px #0008;display:none;text-align:center;z-index:9}
+.gb:after{content:"";position:absolute;top:100%;left:50%;margin-left:-7px;border:7px solid transparent;border-top-color:#fff}
+.ci{font:13px/1.5 system-ui;color:#111}.ci b{font-size:14px}.ci .tag{display:inline-block;background:#c97a1e;color:#fff;border-radius:6px;padding:1px 7px;font-size:11px;margin:2px 0 4px}
+</style></head><body>
+<button id="cbtn" onclick="toggleChat()" title="AI Copilot">&#129302;<span id="cbadge">0</span></button>
+<div id="cwin">
+<div id="chead"><div id="cav">&#129302;</div>
+<div class="t">CampusMind Copilot<span><b class="ld"></b> Live campus data &middot; AI agent</span></div>
+<i id="cvoice" onclick="toggleVoice()" title="Read answers aloud">&#128263;</i><i onclick="toggleChat()">&times;</i></div>
+<div id="cstrip"><div>Alerts<b id="s1">0</b></div><div>Energy saved<b id="s2">0 kWh</b></div><div>Money saved<b id="s3">Rs 0</b></div></div>
+<div id="cmsgs"><div class="cm b">Hi! I can show you places on the campus (try "Where is the canteen?") and I read live room data, events and CCTV alerts. Ask me why a block's power spiked, which rooms waste energy, or for a report for the dean.</div></div>
+<div id="cchips">
+<button onclick="askCopilot('Where is the canteen?')">&#127860; Where is the canteen?</button>
+<button onclick="askCopilot('Where is the hospital?')">&#127973; Where is the hospital?</button>
+<button onclick="askCopilot('Why did the power spike in CD Simer?')">&#9889; Why did CD Simer spike?</button>
+<button onclick="askCopilot('Which rooms are wasting energy right now?')">&#128161; Rooms wasting energy</button>
+<button onclick="askCopilot('Write a short cost-saving policy draft for the dean.')">&#128221; Policy for dean</button>
+<button onclick="askCopilot('Write a one-paragraph weekly sustainability report for the dean with cost saved and the top 3 problem rooms.')">&#128202; Weekly report</button>
+</div>
+<div id="crow"><input id="cin" placeholder="Ask the copilot..." onkeydown="if(event.key==='Enter')askCopilot()"><button onclick="askCopilot()">Send</button></div>
+</div>
+<div id="map"></div><div id="toast"></div><div id="alert"></div>
+<div id="panel">
+<h2>CampusMind - DSU</h2>
+<button id="bs" class="on" onclick="setMode('student')">Student</button>
+<button id="ba" onclick="setMode('admin')">Admin</button>
+<button id="bd" class="on" onclick="setNight(false)">Day</button><button id="bn" onclick="setNight(true)">Night</button>
+<div id="err"></div>
+<div id="studentView">
+<small>Student view</small>
+<h3>Rooms (live)</h3><div id="list"></div>
+<h3>Live events</h3><div id="events"></div>
+<h3>Visitor route</h3>
+<button onclick="route('admin')">Main Gate to Health Sciences &amp; Pharmacy</button>
+<button onclick="route('library')">Go to Engineering School</button>
+<button onclick="route('block-b')">Go to CD Simer</button>
+<h3>3D Campus</h3>
+<button id="bmap" class="on" onclick="setBase('street')">Map view</button>
+<button id="bsat" onclick="setBase('sat')">Satellite</button>
+<button onclick="tour()">&#127909; Guided tour</button>
+<button onclick="orbit()">&#127756; Night orbit</button>
+<button class="red" onclick="stopTour()">Stop</button>
+<button onclick="toggleOSM()" id="bosm">Real DSU buildings</button>
+<h3>Report an issue</h3>
+<select id="sel"></select>
+<button onclick="pin('water leak')">Water leak</button>
+<button onclick="pin('lights on')">Lights on</button>
+<h3>Go to location</h3>
+<input id="loc" placeholder="12.6617, 77.4503"><button onclick="goLoc()">Go</button>
+</div>
+<div id="adminView" style="display:none">
+<small>Admin dashboard</small>
+<h3>Admin: campus status</h3><div id="alist"></div>
+<h3>Admin: stats</h3>
+<div id="stats"></div><small>Savings are simulated (Rs 8 per kWh assumption).</small>
+<h3>Admin: simulate</h3>
+<select id="asel"></select>
+<button class="red" onclick="act('/simulate/empty-room/'+asel.value)">Empty room</button>
+<button onclick="act('/simulate/event/'+asel.value)">Start event</button>
+<button class="on" onclick="act('/action/switch-off/'+asel.value)">Auto switch-off</button>
+<button onclick="act('/reset')">Reset</button>
+<h3>Admin: 3D layout tools</h3>
+<button class="on" onclick="matchReal()">Match real layout</button>
+<button onclick="placeAll()">Place blocks by hand</button>
+<button onclick="arrangeReal()">Arrange around fountain</button>
+<button class="red" onclick="resetLayout()">Reset layout</button>
+<div id="osmmsg"><small></small></div>
+<h3>Admin: place building</h3>
+<select id="plc"></select><button onclick="startPlace()">Place on map</button>
+<h3>Admin: trace real shape</h3>
+<button onclick="startTrace()">Trace shape</button><button class="on" onclick="finishTrace()">Finish</button><button onclick="undoTrace()">Undo</button><button class="red" onclick="clearShape()">Reset shape</button>
+<small>Pick a building above, press Trace, click each roof corner, then Finish.</small>
+</div>
+</div>
+<script>
+const API = location.port==="8000" ? "" : "http://127.0.0.1:8000";
+const CENTER=[77.45027, 12.66171];
+/* ===== NAMES shown on the map (key = room id from the backend) ===== */
+const NAMES={"block-b":"CD Simer","admin":"School of Health Sciences & Pharmacy"};
+/* ===== Construction building info (edit these values) ===== */
+const CONS_DEFAULT={status:"Under construction",completion:"To be announced",floors:"To be announced",note:"Restricted area. Visitors please keep away."};
+/* Per-site details, numbered like the popup title. Example: {1:{completion:"Dec 2026",floors:"5"}} */
+const CONS_INFO={};
+const LAYOUT={"fountain":[0,0],"library":[52,-3],"block-a":[-63,28],"block-b":[-42,105],"admin":[96,-66],"lab":[150,62],"gate":[-168,-10]};
+const SIZE={"library":[84,40],"block-a":[72,30],"block-b":[56,30],"admin":[50,30],"lab":[50,28]};
+const OFF={}; for(const k in LAYOUT) OFF[k]=[LAYOUT[k][0]/(111320*Math.cos(CENTER[1]*Math.PI/180)),-LAYOUT[k][1]/110574];
+let POS={}; for(const k in OFF) POS[k]=[CENTER[0]+OFF[k][0],CENTER[1]+OFF[k][1]];
+let SAVED=false;
+try{const s=JSON.parse(localStorage.getItem("pos3")||"null"); if(s){POS=Object.assign(POS,s);SAVED=true}}catch(e){}
+const MK={};
+const FLOORS={"block-a":5,"block-b":6,"library":4,"admin":3,"lab":4};
+let POLY={},tracing=null,TP=[];
+try{POLY=JSON.parse(localStorage.getItem("poly3")||"{}")}catch(e){}
+let OSMPOLY={}, USED=new Set(), REAL=null, realApplied=false;
+let ROOMS={}, ash=false, ready=false, placing=null, lled=false;
+const $=id=>document.getElementById(id);
+const sq=(c,s=0.00016)=>{c=c||CENTER;return[[c[0]-s,c[1]-s],[c[0]+s,c[1]-s],[c[0]+s,c[1]+s],[c[0]-s,c[1]+s],[c[0]-s,c[1]-s]]};
+const COL={ok:"#2e9e3f",event:"#f5a623"};
+const col=st=>st==="leak"?(ash?"#ff2d2d":"#7a0000"):(COL[st]||"#2e9e3f");
+const pt=c=>({type:"FeatureCollection",features:[{type:"Feature",properties:{},geometry:{type:"Point",coordinates:c}}]});
+const ln=cs=>({type:"FeatureCollection",features:[{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:cs}}]});
+const EMPTY={type:"FeatureCollection",features:[]};
+function toast(t){const e=$("toast");e.textContent=t;e.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display="none",3000)}
+/* ---------- 3D classical DSU-style buildings (three.js custom layer) ---------- */
+let night=false;
+const MXM=111320*Math.cos(CENTER[1]*Math.PI/180), MYM=110574;
+const loc=c=>[(c[0]-CENTER[0])*MXM, -(c[1]-CENTER[1])*MYM];
+const TOWER_IDS=["block-a","admin","block-b","library"];
+const BAY=5, FL=4, GF=4.8;
+const texCache={};
+function ctex(c){const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;return t}
+function tex(kind,n){
+const key=kind+n; if(texCache[key])return texCache[key];
+const w=kind==="tower"?128:160, h=kind==="tower"?238:(kind==="ground"?154:128);
+const c=document.createElement("canvas");c.width=w;c.height=h;const g=c.getContext("2d");
+const wall=n?"#cdb27a":"#dccb9a", pil=n?"#f3cc7a":"#f7edc9", glass=n?"#e2a04a":"#40566f", frame=n?"#f6d88a":"#f3e9c6";
+g.fillStyle=wall;g.fillRect(0,0,w,h);
+g.fillStyle=pil;g.fillRect(0,0,18,h);g.fillRect(w-18,0,18,h);
+if(n){const gr=g.createLinearGradient(0,h,0,0);gr.addColorStop(0,'rgba(255,238,160,.7)');gr.addColorStop(1,'rgba(255,238,160,0)');g.fillStyle=gr;g.fillRect(0,0,18,h);g.fillRect(w-18,0,18,h)}
+if(kind==="tower"){
+g.fillStyle=frame;g.beginPath();g.arc(w/2,56,34,0,7);g.fill();
+g.fillStyle=n?"#f3c870":"#f6f3e8";g.beginPath();g.arc(w/2,56,27,0,7);g.fill();
+g.strokeStyle="#333";g.lineWidth=3;g.beginPath();g.moveTo(w/2,56);g.lineTo(w/2,36);g.moveTo(w/2,56);g.lineTo(w/2+15,62);g.stroke();
+g.fillStyle=frame;g.fillRect(40,120,48,100);g.fillStyle=glass;g.fillRect(46,126,36,88);
+} else if(kind==="ground"){
+g.fillStyle=frame;g.beginPath();g.moveTo(38,h);g.lineTo(38,84);g.arc(80,84,42,Math.PI,0);g.lineTo(122,h);g.fill();
+g.fillStyle=glass;g.beginPath();g.moveTo(46,h);g.lineTo(46,84);g.arc(80,84,34,Math.PI,0);g.lineTo(114,h);g.fill();
+g.strokeStyle=frame;g.lineWidth=3;g.beginPath();g.moveTo(80,50);g.lineTo(80,h);g.moveTo(46,104);g.lineTo(114,104);g.stroke();
+} else {
+g.fillStyle=pil;g.beginPath();g.moveTo(38,34);g.lineTo(80,12);g.lineTo(122,34);g.fill();
+g.fillStyle=frame;g.fillRect(40,34,80,72);g.fillStyle=glass;g.fillRect(47,41,66,58);
+g.strokeStyle=frame;g.lineWidth=3;g.beginPath();g.moveTo(80,41);g.lineTo(80,99);g.moveTo(47,70);g.lineTo(113,70);g.stroke();
+g.fillStyle=pil;g.fillRect(0,h-8,w,8);
+}
+return texCache[key]=ctex(c);
+}
+function mats(n){
+const tm=t=>n?new THREE.MeshBasicMaterial({map:t,side:THREE.DoubleSide}):new THREE.MeshLambertMaterial({map:t,side:THREE.DoubleSide});
+const fm=c=>n?new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide}):new THREE.MeshLambertMaterial({color:c,side:THREE.DoubleSide});
+return {ground:tm(tex("ground",n)),upper:tm(tex("upper",n)),tower:tm(tex("tower",n)),roof:fm(n?"#9c9381":"#8d8776"),cream:fm(n?"#f1e6c3":"#e6dbbb"),copper:fm(n?"#d98a56":"#b0623a"),dome:fm(n?"#f6e6b4":"#e7d7a4")};
+}
+function foot(id){
+const p=POLY[id]||OSMPOLY[id]; if(p&&p.length>2)return p.map(loc);
+const c=loc(POS[id]||CENTER); const z=SIZE[id]||[60,32];
+return [[c[0]-z[0]/2,c[1]-z[1]/2],[c[0]+z[0]/2,c[1]-z[1]/2],[c[0]+z[0]/2,c[1]+z[1]/2],[c[0]-z[0]/2,c[1]+z[1]/2]];
+}
+function wallGeo(f,y0,y1,rv){
+const P=[],U=[],I=[];
+f.forEach((a,i)=>{
+const b=f[(i+1)%f.length],len=Math.hypot(b[0]-a[0],b[1]-a[1]),ru=Math.max(1,Math.round(len/BAY)),k=P.length/3;
+P.push(a[0],y0,a[1], b[0],y0,b[1], b[0],y1,b[1], a[0],y1,a[1]);
+U.push(0,0, ru,0, ru,rv, 0,rv); I.push(k,k+1,k+2,k,k+2,k+3);
+});
+const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.Float32BufferAttribute(P,3));
+geo.setAttribute("uv",new THREE.Float32BufferAttribute(U,2));
+geo.setIndex(I);geo.computeVertexNormals();return geo;
+}
+function buildBuilding(id,M){
+const g=new THREE.Group(), f=foot(id), nf=FLOORS[id]||4, H=GF+FL*(nf-1);
+g.add(new THREE.Mesh(wallGeo(f,0,GF,1),M.ground));
+if(nf>1)g.add(new THREE.Mesh(wallGeo(f,GF,H,nf-1),M.upper));
+const rg=new THREE.ShapeGeometry(new THREE.Shape(f.map(p=>new THREE.Vector2(p[0],-p[1]))));
+rg.rotateX(-Math.PI/2);rg.translate(0,H+0.2,0);g.add(new THREE.Mesh(rg,M.roof));
+g.add(new THREE.Mesh(wallGeo(f,H,H+1.4,1),M.cream));g.add(new THREE.Mesh(wallGeo(f,0,0.9,1),M.cream));
+const cx=f.reduce((t,p)=>t+p[0],0)/f.length, cz=f.reduce((t,p)=>t+p[1],0)/f.length;
+if(TOWER_IDS.includes(id)){
+const a=f[0], d=Math.hypot(cx-a[0],cz-a[1])||1, tx=a[0]+(cx-a[0])*3.6/d, tz=a[1]+(cz-a[1])*3.6/d;
+const tw=new THREE.Mesh(new THREE.BoxGeometry(7,13,7),[M.tower,M.tower,M.cream,M.cream,M.tower,M.tower]);
+tw.position.set(tx,H+3.5,tz);g.add(tw);
+const dm=new THREE.Mesh(new THREE.SphereGeometry(4.4,24,12,0,Math.PI*2,0,Math.PI/2),M.dome);dm.scale.set(1,1.1,1);dm.position.set(tx,H+10,tz);g.add(dm);
+const nd=new THREE.Mesh(new THREE.ConeGeometry(0.5,3.5,8),M.dome);
+nd.position.set(tx,H+16,tz);g.add(nd);
+}
+/* orange triangle marker above the building (turns red on an energy leak) */
+const bc=new THREE.Mesh(new THREE.ConeGeometry(3.2,6,3),new THREE.MeshBasicMaterial({color:0xff8c00}));
+bc.rotation.x=Math.PI;
+bc.position.set(cx,H+8,cz);g.add(bc);g.userData.beacon=bc;
+return g;
+}
+let bKey="";
+function syncB3D(){
+if(!B3D.scene)return;
+const key=JSON.stringify([POS,POLY,OSMPOLY,Object.keys(ROOMS),night]);
+if(key!==bKey){
+bKey=key;
+while(B3D.group.children.length)B3D.group.remove(B3D.group.children[0]);
+const M=mats(night);B3D.parts={};
+for(const id of Object.keys(ROOMS)){const b=buildBuilding(id,M);B3D.group.add(b);B3D.parts[id]=b.userData.beacon}
+try{buildScenery(night)}catch(e){console.log('scenery',e)}
+}
+for(const [id,r] of Object.entries(ROOMS)){
+const bc=B3D.parts&&B3D.parts[id]; if(!bc)continue;
+bc.material.color.set(r.status==="leak"?col("leak"):"#ff8c00"); bc.scale.setScalar(r.status==="leak"?1.8:1);
+}
+}
+const B3D={id:"b3d",type:"custom",renderingMode:"3d",parts:{},
+onAdd(m,gl){
+this.map=m;this.camera=new THREE.Camera();this.scene=new THREE.Scene();
+this.scene.add(new THREE.AmbientLight(0xffffff,0.8));
+const sun=new THREE.DirectionalLight(0xffffff,0.7);sun.position.set(40,90,-30);this.scene.add(sun);
+this.group=new THREE.Group();this.scene.add(this.group);
+this.renderer=new THREE.WebGLRenderer({canvas:m.getCanvas(),context:gl,antialias:true});this.renderer.autoClear=false;
+},
+render(gl,matrix){
+const arr=matrix.length===16?matrix:matrix.defaultProjectionData.mainMatrix;
+const mc=maplibregl.MercatorCoordinate.fromLngLat(CENTER,0), s=mc.meterInMercatorCoordinateUnits();
+const rx=new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(1,0,0),Math.PI/2);
+const L=new THREE.Matrix4().makeTranslation(mc.x,mc.y,mc.z).scale(new THREE.Vector3(s,-s,s)).multiply(rx);
+this.camera.projectionMatrix=new THREE.Matrix4().fromArray(arr).multiply(L);
+if(this.renderer.resetState)this.renderer.resetState();else this.renderer.state.reset();
+try{if(this.anim)this.anim(performance.now()/1000)}catch(e){}
+this.renderer.render(this.scene,this.camera);this.map.triggerRepaint();
+}};
+function setNight(n){
+night=n;$("bd").className=n?"":"on";$("bn").className=n?"on":"";
+if(ready){["street","sat"].forEach(l=>map.setPaintProperty(l,"raster-brightness-max",n?0.35:1))}
+if(ready&&map.getLayer("osm"))map.setPaintProperty("osm","fill-extrusion-color",osmColor());
+}
+/* base map: OpenStreetMap street view (same look as the DSU layout screenshot) or satellite */
+function setBase(k){
+if(!ready)return;
+map.setLayoutProperty("street","visibility",k==="street"?"visible":"none");
+map.setLayoutProperty("sat","visibility",k==="sat"?"visible":"none");
+$("bmap").className=k==="street"?"on":"";$("bsat").className=k==="sat"?"on":"";
+}
+const map=new maplibregl.Map({container:"map",center:CENTER,zoom:17,pitch:55,bearing:-15,
+style:{version:8,sources:{
+street:{type:"raster",tiles:["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],tileSize:256,maxzoom:19,attribution:"© OpenStreetMap contributors"},
+sat:{type:"raster",tiles:["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],tileSize:256,maxzoom:19,attribution:"Imagery: Esri"}},
+layers:[{id:"street",type:"raster",source:"street"},{id:"sat",type:"raster",source:"sat",layout:{visibility:"none"}}]}});
+map.addControl(new maplibregl.NavigationControl());
+map.on("load",()=>{
+map.addSource("b",{type:"geojson",data:EMPTY});
+map.addLayer({id:"b",type:"fill-extrusion",source:"b",paint:{"fill-extrusion-color":["get","color"],"fill-extrusion-height":["get","h"],"fill-extrusion-opacity":window.THREE?0.02:0.7}});
+map.addSource("route",{type:"geojson",data:EMPTY});
+map.addLayer({id:"route",type:"line",source:"route",paint:{"line-color":"#2563eb","line-width":5}});
+map.addSource("trace",{type:"geojson",data:EMPTY});
+map.addLayer({id:"trace-l",type:"line",source:"trace",filter:["==","$type","LineString"],paint:{"line-color":"#facc15","line-width":3}});
+map.addLayer({id:"trace-p",type:"circle",source:"trace",filter:["==","$type","Point"],paint:{"circle-radius":5,"circle-color":"#ef4444"}});
+map.addSource("gate",{type:"geojson",data:pt(POS.gate)});
+map.addLayer({id:"gate",type:"circle",source:"gate",paint:{"circle-radius":8,"circle-color":"#2f80ed","circle-stroke-color":"#fff","circle-stroke-width":2}});
+if(window.THREE)map.addLayer(B3D);
+ready=true; draw();
+loadReal();
+});
+map.on("click",e=>{
+if(anchoring){applyLayout([e.lngLat.lng,e.lngLat.lat]);return}
+if(tracing){TP.push([e.lngLat.lng,e.lngLat.lat]);showTrace();return}
+if(placing){POS[placing]=[e.lngLat.lng,e.lngLat.lat];delete POLY[placing];delete OSMPOLY[placing];save();toast("Placed: "+lbl(placing));placing=QUEUE.length?QUEUE.shift():null;if(placing)toast("Next: click "+lbl(placing)+" ("+(QN-QUEUE.length)+"/"+QN+") - Esc to stop");else map.getCanvas().style.cursor="";draw();return}
+const f=map.queryRenderedFeatures(e.point,{layers:["b"]});
+if(f.length){const r=ROOMS[f[0].properties.id];
+new maplibregl.Popup().setLngLat(e.lngLat).setHTML("<b>"+r.name+"</b><br>"+r.kw+" kW, "+r.people+" people<br>Status: "+r.status).addTo(map);return}
+if(map.getLayer("osm")){const g=map.queryRenderedFeatures(e.point,{layers:["osm"]});
+if(g.length){const p=g[0].properties;
+if(p.cons==1){const i=Object.assign({},CONS_DEFAULT,CONS_INFO[p.n]||{});
+new maplibregl.Popup().setLngLat(e.lngLat).setHTML('<div class="ci"><b>Construction Site '+p.n+'</b><br><span class="tag">'+i.status+'</span><br>Expected completion: '+i.completion+'<br>Floors planned: '+i.floors+'<br>Note: '+i.note+'</div>').addTo(map)}
+else if(p.name)new maplibregl.Popup().setLngLat(e.lngLat).setHTML("<b>"+p.name+"</b>").addTo(map)}}
+});
+function draw(){
+if(!ready)return;
+map.getSource("b").setData({type:"FeatureCollection",features:Object.entries(ROOMS).map(([id,r])=>{const P=POLY[id]||OSMPOLY[id];return {type:"Feature",properties:{id,color:col(r.status),h:(FLOORS[id]||4)*3.5},geometry:{type:"Polygon",coordinates:P?[P.concat([P[0]])]:[sq(POS[id])]}}})});
+map.getSource("gate").setData(pt(POS.gate));
+for(const [id,r] of Object.entries(ROOMS)){
+if(!MK[id]){const el=document.createElement("div");el.className="lbl";MK[id]={el,m:new maplibregl.Marker({element:el,anchor:"bottom",offset:[0,-48]}).setLngLat(POS[id]).addTo(map)}}
+MK[id].m.setLngLat(POS[id]);MK[id].el.textContent=r.name+" - "+r.kw+" kW";
+MK[id].el.style.borderColor=col(r.status);
+}
+if(window.THREE)syncB3D();
+}
+async function tick(){
+try{
+ROOMS=await (await fetch(API+"/rooms")).json();
+for(const id in ROOMS){if(NAMES[id])ROOMS[id].name=NAMES[id]}   /* new block names */
+const s=await (await fetch(API+"/stats")).json();
+$("err").style.display="none";
+$("list").innerHTML=Object.values(ROOMS).map(r=>'<div class="row"><span class="dot" style="background:'+col(r.status)+'"></span>'+r.name+' - '+r.kw+' kW, '+r.people+' people</div>').join("");
+$("alist").innerHTML=$("list").innerHTML;
+$("stats").innerHTML="Alerts caught: <b>"+s.alerts+"</b><br>Energy saved: <b>"+s.kwh_saved.toFixed(1)+" kWh</b><br>Money saved: <b>Rs "+s.rupees_saved+"</b>";
+const lk=Object.values(ROOMS).filter(r=>r.status==="leak");
+$("alert").style.display=lk.length?"block":"none";
+$("alert").textContent=lk.length?"ENERGY LEAK: "+lk.map(r=>r.name).join(", ")+" - lights ON, room empty":"";
+updChat(s,lk);
+const ev=await (await fetch(API+"/events")).json();
+/* Code Clash 2.0 is running now, 10:00 AM to 4:00 PM */
+$("events").innerHTML=ev.map(e=>{
+const cc=/hackathon|code\s*clash/i.test(e.title||"");
+const title=cc?"Code Clash 2.0":e.title, st=cc?"10:00 AM":e.start, en=cc?"4:00 PM":e.end;
+return '<div class="row">'+((cc||e.live)?"LIVE: ":"Later: ")+title+" - "+(ROOMS[e.room]?ROOMS[e.room].name:e.room)+" ("+st+" to "+en+")</div>"}).join("");
+if(!lled){const o=Object.entries(ROOMS).map(([id,r])=>'<option value="'+id+'">'+r.name+'</option>').join("");
+$("sel").innerHTML=o;$("asel").innerHTML=o;$("plc").innerHTML=o+'<option value="gate">Main Gate</option><option value="fountain">Fountain</option>';lled=true}
+if(REAL&&!realApplied)applyReal();
+draw();
+}catch(e){$("err").style.display="block";$("err").textContent="Reconnecting to campus server..."}}
+setInterval(tick,2000);tick();
+setInterval(()=>{ash=!ash;draw()},500);
+async function act(p){try{const r=await fetch(API+p,{method:"POST"});const j=await r.json();toast(j.msg||"Done");tick()}catch(e){toast("Backend not reachable")}}
+async function pin(issue){try{await fetch(API+"/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({room:$("sel").value,issue})});toast("Pin sent to admin: "+issue)}catch(e){toast("Backend not reachable")}}
+function setMode(m){$("adminView").style.display=m==="admin"?"block":"none";$("studentView").style.display=m==="student"?"block":"none";$("bs").className=m==="student"?"on":"";$("ba").className=m==="admin"?"on":""}
+function save(){try{localStorage.setItem("pos3",JSON.stringify(POS));localStorage.setItem("poly3",JSON.stringify(POLY))}catch(e){}}
+function showTrace(){if(!ready)return;const f=TP.map(c=>({type:"Feature",properties:{},geometry:{type:"Point",coordinates:c}}));
+if(TP.length>1)f.push({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:TP.concat(TP.length>2?[TP[0]]:[])}});
+map.getSource("trace").setData({type:"FeatureCollection",features:f})}
+function startTrace(){const id=$("plc").value;if(!ROOMS[id]){toast("Pick a building to trace");return}
+tracing=id;TP=[];showTrace();map.getCanvas().style.cursor="crosshair";toast("Click each roof corner of "+ROOMS[id].name+", then Finish")}
+function undoTrace(){TP.pop();showTrace()}
+function finishTrace(){if(!tracing||TP.length<3){toast("Click at least 3 corners first");return}
+POLY[tracing]=TP.slice();POS[tracing]=[TP.reduce((a,p)=>a+p[0],0)/TP.length,TP.reduce((a,p)=>a+p[1],0)/TP.length];
+save();tracing=null;TP=[];showTrace();map.getCanvas().style.cursor="";toast("Shape saved");draw()}
+function clearShape(){const id=$("plc").value;delete POLY[id];delete OSMPOLY[id];save();draw();toast("Shape reset")}
+function startPlace(){placing=$("plc").value;map.getCanvas().style.cursor="crosshair";toast("Click the map where it should be")}
+function goLoc(){const p=$("loc").value.split(",").map(Number);if(p.length===2&&!p.some(isNaN))map.flyTo({center:[p[1],p[0]],zoom:17,pitch:60});else toast("Type like: 12.6617, 77.4503")}
+/* ---------- Copilot chat ---------- */
+let voiceOn=false, seenLeaks="", chatOpen=false;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function toggleVoice(){voiceOn=!voiceOn;$("cvoice").innerHTML=voiceOn?"&#128266;":"&#128263;";if(!voiceOn&&window.speechSynthesis)speechSynthesis.cancel();toast(voiceOn?"Voice on":"Voice off")}
+function speak(t){if(!voiceOn||!window.speechSynthesis)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=1;speechSynthesis.speak(u)}
+function toggleChat(){const w=$("cwin");chatOpen=w.style.display!=="flex";w.style.display=chatOpen?"flex":"none";
+if(chatOpen){$("cin").focus();$("cbadge").style.display="none";$("cbtn").classList.remove("pulse")}}
+function tstamp(){return new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
+function addMsg(t,who,src){const d=document.createElement("div");d.className="cm "+who;d.textContent=t;
+const s=document.createElement("small");s.textContent=(src?src+" · ":"")+tstamp();d.appendChild(s);
+$("cmsgs").appendChild(d);$("cmsgs").scrollTop=$("cmsgs").scrollHeight;return d}
+function typing(){const d=document.createElement("div");d.className="cm b dots";d.innerHTML="<span></span><span></span><span></span>";
+$("cmsgs").appendChild(d);$("cmsgs").scrollTop=$("cmsgs").scrollHeight;return d}
+async function askCopilot(text){
+const q=(text||$("cin").value).trim();if(!q)return;$("cin").value="";addMsg(q,"u");const wait=typing();
+/* 1) campus guide: place questions are answered here and shown on the map */
+const lg=localGuide(q);
+if(lg){await sleep(350);wait.remove();addMsg(lg,"b","Campus guide");speak(lg);return}
+/* 2) everything else (energy, reports, policy) goes to the backend copilot */
+try{const r=await fetch(API+"/copilot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q})});
+const d=await r.json();wait.remove();addMsg(d.answer,"b","Answered by "+d.source);speak(d.answer)}
+catch(e){wait.remove();addMsg("Cannot reach the backend. Is uvicorn running?","b")}
+}
+/* ---------- Campus guide: answers "where is ..." questions from the real map data ---------- */
+const ENERGY=/power|energy|kwh|\bkw\b|spike|leak|saving|saved|cost|policy|report|bill|electric|consum|switch|lights?\b|wast|alert|cctv|why\b/i;
+const GROUPS=[
+{n:"the canteen",t:/canteen|cafeteria|food|\beat\b|lunch|snack|\bmess\b|\btea\b|coffee|restaurant|dining|hungry|breakfast|\bcafe\b/i,p:/food|canteen|cafeteria|\bmess\b|cafe|restaurant|dining|tummy|bakery|juice|tea/i},
+{n:"the hospital",t:/hospital|doctor|clinic|medical|emergency|first aid|\bill\b|sick/i,p:/hospital|clinic|medical/i},
+{n:"the library",t:/library|books/i,p:/library/i},
+{n:"the hostel",t:/hostel|dorm|accommodation|\bstay\b/i,p:/hostel|dorm/i},
+{n:"the auditorium",t:/auditorium|amphi|theat|seminar|stage/i,p:/auditorium|amphi|theat|seminar/i},
+{n:"the arena",t:/arena|stadium|ground|sports|\bgym\b|play/i,p:/arena|stadium|ground|sport|gym/i},
+{n:"the pharmacy",t:/pharmac|medicine|chemist/i,p:/pharmac/i},
+{n:"an ATM / bank",t:/\batm\b|bank|cash/i,p:/\batm\b|bank/i},
+{n:"parking",t:/parking|park my/i,p:/parking/i},
+{n:"the nursing school",t:/nursing/i,p:/nursing/i}
+];
+const STOP=new Set("where show take find route direction directions campus building block please navigate locate tell about located what which near nearest from give need want would like could can the and for how far long walk reach there this that location place".split(" "));
+let PLM=null;
+function pickNearGate(list){return list.slice().sort((a,b)=>mdist(a.c,POS.gate)-mdist(b.c,POS.gate))[0]}
+function showPlace(p){
+if(PLM){PLM.remove();PLM=null}
+const el=document.createElement("div");el.className="pl";el.textContent=p.name;
+PLM=new maplibregl.Marker({element:el,anchor:"bottom"}).setLngLat(p.c).addTo(map);
+map.getSource("route").setData(ln([POS.gate,p.c]));
+map.flyTo({center:p.c,zoom:18.4,pitch:60,bearing:map.getBearing(),duration:2200,essential:true});
+}
+function describe(p,extra){
+const d=Math.round(mdist(POS.gate,p.c)), mins=Math.max(1,Math.round(d/75));
+return p.name+" is about "+d+" metres from the main gate, roughly "+mins+" min on foot. I have marked it on the map with a route from the gate."+(extra||"");
+}
+function localGuide(q){
+if(!ready)return null;
+const s=q.toLowerCase();
+if(ENERGY.test(s)&&!/where|show me|take me|locate|direction|how (do|to) (i )?(get|reach)/i.test(s))return null;
+/* a CampusMind block by name (CD Simer, Library, ...) */
+const room=Object.entries(ROOMS).find(([id,r])=>r.name.length>3&&s.includes(r.name.toLowerCase()));
+if(room){const [id,r]=room;const p={name:r.name,c:POS[id]};showPlace(p);return describe(p," It is "+(r.status==="leak"?"currently flagged as an energy leak.":"running normally now."))}
+/* a kind of place (canteen, hospital, ...) */
+for(const g of GROUPS){
+if(!g.t.test(s))continue;
+if(!REAL||!REAL.places)return "I am still loading the campus map data. Please ask again in a few seconds.";
+const list=REAL.places.filter(x=>g.p.test(x.name+" "+x.kind));
+if(!list.length)return "I could not find "+g.n+" in the campus map data. You can ask me for another place, such as the library, hospital, hostel or auditorium.";
+const best=pickNearGate(list);showPlace(best);
+return describe(best,list.length>1?" There are "+list.length+" matching places and this is the closest to the gate.":"");
+}
+/* any named place on the map (Amphitheater, DSU Arena, Open Auditorium, ...) */
+if(REAL&&REAL.places){
+const words=s.replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(w=>w.length>3&&!STOP.has(w));
+if(words.length){
+let best=null,score=0;
+REAL.places.forEach(p=>{const n=p.name.toLowerCase();let sc=0;words.forEach(w=>{if(n.includes(w))sc++});if(sc>score){score=sc;best=p}});
+if(best&&score>0){showPlace(best);return describe(best)}
+}}
+return null;
+}
+function updChat(s,lk){
+$("s1").textContent=s.alerts;$("s2").textContent=s.kwh_saved.toFixed(1)+" kWh";$("s3").textContent="Rs "+s.rupees_saved;
+const key=lk.map(r=>r.name).sort().join(",");
+if(key&&key!==seenLeaks){
+const d=document.createElement("div");d.className="cm a";
+d.appendChild(document.createTextNode("ALERT: CCTV found "+lk.map(r=>r.name).join(", ")+" empty with lights ON. This is an energy leak. What should I do?"));
+const id=Object.keys(ROOMS).find(k=>ROOMS[k].status==="leak");
+const b1=document.createElement("button");b1.className="ab";b1.textContent="Auto switch-off";b1.onclick=()=>{act("/action/switch-off/"+id);addMsg("Done: lights switched off in "+ROOMS[id].name+". Saving logged.","b")};
+const b2=document.createElement("button");b2.className="ab g";b2.textContent="Explain why";b2.onclick=()=>askCopilot("Why is "+ROOMS[id].name+" an energy leak right now and what should we do?");
+d.appendChild(document.createElement("br"));d.appendChild(b1);d.appendChild(b2);
+const sm=document.createElement("small");sm.textContent="Auto-detected · "+tstamp();d.appendChild(sm);
+$("cmsgs").appendChild(d);$("cmsgs").scrollTop=$("cmsgs").scrollHeight;
+if(!chatOpen){const n=$("cbadge");n.textContent=lk.length;n.style.display="flex";$("cbtn").classList.add("pulse")}
+}
+seenLeaks=key;}
+/* ---------- Real DSU layout from OpenStreetMap (same data as the street map) ---------- */
+let osmLoaded=false, osmOn=false;
+const osmColor=()=>{
+const base=night?["interpolate",["linear"],["get","h"],6,"#7d7358",30,"#a89c78"]:["interpolate",["linear"],["get","h"],6,"#d8c9a2",30,"#f3e8c8"];
+return ["case",["==",["get","cons"],1],night?"#8a6f4d":"#c9a06b",base]};
+function osmMsg(t){$("osmmsg").firstChild.textContent=t}
+const mdist=(a,b)=>Math.hypot((a[0]-b[0])*MXM,(a[1]-b[1])*MYM);
+function ringArea(ring){let s=0;const p=ring.map(loc);for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];s+=a[0]*b[1]-b[0]*a[1]}return Math.abs(s)/2}
+function centroid(ring){return [ring.reduce((t,p)=>t+p[0],0)/ring.length,ring.reduce((t,p)=>t+p[1],0)/ring.length]}
+function processOSM(raw){
+const blds=[],fc=[],places=[];
+for(const w of raw.elements){
+const t=w.tags||{};let ring=null;
+if(w.type==="way"&&w.geometry&&w.geometry.length>=3){ring=w.geometry.map(g=>[g.lon,g.lat]);
+const a=ring[0],z=ring[ring.length-1];if(ring.length>3&&a[0]===z[0]&&a[1]===z[1])ring.pop()}
+let pc=null;
+if(w.type==="node"&&w.lat!==undefined)pc=[w.lon,w.lat];
+else if(ring)pc=centroid(ring);
+else if(w.bounds)pc=[(w.bounds.minlon+w.bounds.maxlon)/2,(w.bounds.minlat+w.bounds.maxlat)/2];
+if(t.name&&pc&&!t.highway)places.push({name:t.name,c:pc,kind:[t.amenity,t.leisure,t.tourism,t.shop,t.building,t.landuse].filter(Boolean).join(" ")});
+if(t.building&&ring&&ring.length>=3){
+let h=parseFloat(t.height)||(parseFloat(t["building:levels"])||0)*3.4;if(!h)h=8+((w.id%7)*1.5);
+const cons=t.building==="construction"||!!t.construction||/construction/i.test(t.name||"");
+blds.push({id:w.id,name:t.name||"",ring,h,cons,area:ringArea(ring),c:centroid(ring)});
+}else if(t.amenity==="fountain"||/fountain/i.test(t.name||"")){
+if(pc)fc.push(pc);
+}}
+fc.sort((a,b)=>mdist(a,CENTER)-mdist(b,CENTER));
+return {blds,fountain:fc.length?fc[0]:null,places};
+}
+async function loadReal(){
+osmMsg("Loading real DSU layout from OpenStreetMap...");
+let data=null;
+try{data=JSON.parse(localStorage.getItem("osm_dsu_v3")||"null")}catch(e){}
+if(!data){
+const b=[CENTER[1]-0.0045,CENTER[0]-0.006,CENTER[1]+0.0045,CENTER[0]+0.006].join(",");
+const q='[out:json][timeout:30];(way["building"]('+b+');way["name"][!"highway"]('+b+');node["name"]('+b+');node["amenity"="fountain"]('+b+');way["amenity"="fountain"]('+b+'););out geom;';
+let raw=null;
+for(const url of ["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter"]){
+try{const r=await fetch(url,{method:"POST",body:"data="+encodeURIComponent(q),headers:{"Content-Type":"application/x-www-form-urlencoded"}});
+if(r.ok){raw=await r.json();break}}catch(e){}}
+if(!raw){osmMsg("Could not reach OpenStreetMap. Check internet and press Real DSU buildings.");return}
+data=processOSM(raw);
+try{localStorage.setItem("osm_dsu_v3",JSON.stringify(data))}catch(e){}
+}
+REAL=data;
+const nc=REAL.blds.filter(b=>b.cons).length;
+osmMsg(REAL.blds.length+" real buildings, "+(REAL.places||[]).length+" named places, "+nc+" under construction"+(REAL.fountain?" (fountain found)":""));
+applyReal();showOsm();
+}
+/* put the CampusMind blocks on real building outlines near the fountain */
+const MATCH={"library":[/engineering|soe/i],"block-b":[/simer/i],"admin":[/health/i,/pharmac/i]};
+const BADNAME=/hospital|staff|quarter|hostel/i;
+function applyReal(force){
+if(!REAL||!ready)return;
+const ids=Object.keys(ROOMS);if(!ids.length)return;
+if(realApplied&&!force)return;
+if(SAVED&&!force){realApplied=true;showOsm();return}
+realApplied=true;
+if(force){POLY={};OSMPOLY={};try{localStorage.removeItem("pos3");localStorage.removeItem("poly3")}catch(e){}}
+const fo=REAL.fountain||POS.fountain;
+for(const k in LAYOUT)POS[k]=[fo[0]+LAYOUT[k][0]/MXM, fo[1]-LAYOUT[k][1]/MYM];
+USED=new Set();OSMPOLY={};
+/* construction site 1 becomes the School of Health Sciences & Pharmacy (full 3D building) */
+const cb=REAL.blds.filter(b=>b.cons&&mdist(b.c,fo)<600).sort((a,b)=>mdist(a.c,fo)-mdist(b.c,fo))[0];
+if(cb&&ids.includes("admin")){USED.add(cb.id);OSMPOLY["admin"]=cb.ring;POS["admin"]=cb.c}
+const near=REAL.blds.filter(b=>!b.cons&&mdist(b.c,fo)<600).sort((a,b)=>mdist(a.c,fo)-mdist(b.c,fo));
+/* 1) blocks with a real name: match them by name */
+ids.forEach(id=>{
+if(OSMPOLY[id])return;
+for(const re of (MATCH[id]||[])){
+const m=near.filter(b=>re.test(b.name)&&!USED.has(b.id));
+const pick=m.find(b=>!BADNAME.test(b.name))||m[0];
+if(pick){USED.add(pick.id);OSMPOLY[id]=pick.ring;POS[id]=pick.c;break}
+}});
+/* 2) remaining blocks: nearest large real buildings */
+const cand=near.filter(b=>b.area>=300&&mdist(b.c,fo)<320);
+ids.forEach(id=>{
+if(OSMPOLY[id])return;
+const b=cand.find(x=>!USED.has(x.id));
+if(!b)return;
+USED.add(b.id);OSMPOLY[id]=b.ring;POS[id]=b.c;
+});
+showOsm();draw();
+map.flyTo({center:fo,zoom:17.6,pitch:58,bearing:-15,duration:1800});
+}
+function matchReal(){
+if(!ready)return;
+if(!REAL){loadReal();return}
+applyReal(true);toast("Matched the real DSU layout");
+}
+function osmData(){
+let n=0;
+return {type:"FeatureCollection",features:REAL.blds.filter(b=>!USED.has(b.id)).map(b=>({type:"Feature",properties:{h:b.cons?Math.min(b.h,12):b.h,name:b.name,cons:b.cons?1:0,n:b.cons?++n:0},geometry:{type:"Polygon",coordinates:[b.ring.concat([b.ring[0]])]}}))}}
+function showOsm(){
+if(!ready||!REAL)return;
+if(map.getSource("osm")){map.getSource("osm").setData(osmData());return}
+map.addSource("osm",{type:"geojson",data:osmData()});
+map.addLayer({id:"osm",type:"fill-extrusion",source:"osm",paint:{"fill-extrusion-color":osmColor(),"fill-extrusion-height":["get","h"],"fill-extrusion-opacity":0.95}},map.getLayer("b3d")?"b3d":undefined);
+map.on("mouseenter","osm",()=>{map.getCanvas().style.cursor="pointer"});
+map.on("mouseleave","osm",()=>{if(!placing&&!tracing&&!anchoring)map.getCanvas().style.cursor=""});
+osmLoaded=true;osmOn=true;$("bosm").className="on";
+}
+function toggleOSM(){
+if(!ready)return;
+if(!REAL){loadReal();return}
+if(!map.getLayer("osm")){showOsm();return}
+osmOn=!osmOn;map.setLayoutProperty("osm","visibility",osmOn?"visible":"none");$("bosm").className=osmOn?"on":"";
+osmMsg(osmOn?"Real buildings shown":"Real buildings hidden");
+}
+/* ---------- Manual layout tools, guide and 3D motions ---------- */
+const QUEUE=[]; let QN=7, anchoring=false, guiding=false, orbiting=false;
+const lbl=id=>ROOMS[id]?ROOMS[id].name:({gate:"the Main Gate",fountain:"the fountain"})[id]||id;
+function placeAll(){
+if(!ready)return;
+QUEUE.length=0;["block-b","library","admin","lab","gate","fountain"].forEach(k=>QUEUE.push(k));QN=7;
+placing="block-a";map.getCanvas().style.cursor="crosshair";
+map.flyTo({center:CENTER,zoom:17.4,pitch:50,bearing:0,duration:1500});
+toast("Click the real roof of "+lbl(placing)+" (1/7). Esc to stop");}
+function arrangeReal(){
+if(!ready)return;anchoring=true;placing=null;tracing=null;map.getCanvas().style.cursor="crosshair";
+map.flyTo({center:CENTER,zoom:17.4,pitch:45,bearing:0,duration:1500});
+toast("Click the real FOUNTAIN on the map. All blocks will arrange around it.");
+}
+function applyLayout(c){
+anchoring=false;map.getCanvas().style.cursor="";const mx=111320*Math.cos(c[1]*Math.PI/180);
+for(const k in LAYOUT){POS[k]=[c[0]+LAYOUT[k][0]/mx,c[1]-LAYOUT[k][1]/110574];delete POLY[k];delete OSMPOLY[k]}
+save();draw();map.flyTo({center:c,zoom:17.7,pitch:62,bearing:-15,duration:2200});toast("Arranged around the fountain");
+}
+function resetLayout(){try{["pos","poly","pos3","poly3"].forEach(k=>localStorage.removeItem(k))}catch(e){}location.reload()}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){QUEUE.length=0;placing=null;tracing=null;anchoring=false;if(ready)map.getCanvas().style.cursor=""}});
+/* guide robot */
+let GUIDE=null;
+function guideEl(){
+if(GUIDE)return GUIDE;
+const el=document.createElement("div");el.className="guide";el.innerHTML='<div class="gb"></div><div class="gi">&#129302;</div>';
+GUIDE={el,m:new maplibregl.Marker({element:el,anchor:"bottom"}).setLngLat(POS.gate).addTo(map)};return GUIDE;
+}
+function say(t){if(!window.speechSynthesis)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=0.95;speechSynthesis.speak(u)}catch(e){}}
+function guideSay(t,sp){const g=guideEl();g.el.firstChild.textContent=t;g.el.firstChild.style.display="block";if(sp)say(t)}
+function guideHide(){if(GUIDE)GUIDE.el.firstChild.style.display="none"}
+function guideTo(p,ms){
+const g=guideEl(),a=g.m.getLngLat(),t0=performance.now();
+return new Promise(res=>{(function f(now){
+if(!guiding){res();return}
+const u=Math.min(1,(now-t0)/ms),e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;
+g.m.setLngLat([a.lng+(p[0]-a.lng)*e,a.lat+(p[1]-a.lat)*e]);
+if(u<1)requestAnimationFrame(f);else res();
+})(t0)});
+}
+function stopTour(){guiding=false;orbiting=false;if(ready)map.stop();if(window.speechSynthesis)speechSynthesis.cancel();guideHide()}
+/* Motion 1: guided tour - the robot flies to each place, the camera follows and it speaks */
+async function tour(){
+if(!ready||guiding||orbiting)return;guiding=true;
+const S=[["gate","Welcome to Dayananda Sagar University. I am your campus guide. We start at the main gate."],
+["fountain","This is the fountain plaza, the heart of the campus."],
+["library","This is the School of Engineering, with the library inside."],
+["block-a","Block A, where most classes run."],
+["block-b","CD Simer. Today it hosts Code Clash 2.0, running from 10 AM to 4 PM."],
+["admin","The School of Health Sciences and Pharmacy."],
+["lab","And the CS Lab. Thank you for visiting!"]];
+guideEl().m.setLngLat(POS.gate);
+for(let i=0;i<S.length&&guiding;i++){
+const id=S[i][0],p=POS[id];guideHide();
+map.flyTo({center:p,zoom:18.4,pitch:68,bearing:i*50-30,duration:3800,essential:true});await guideTo(p,3800);if(!guiding)break;
+guideSay(S[i][1],true);
+map.easeTo({bearing:map.getBearing()+50,duration:4600,easing:t=>t});
+await sleep(4800);
+}
+if(guiding){map.flyTo({center:POS.fountain,zoom:17,pitch:60,bearing:-20,duration:2500})}
+guiding=false;setTimeout(guideHide,2500);
+}
+/* Motion 2: night orbit - cinematic circle around the fountain plaza */
+async function orbit(){
+if(!ready||guiding||orbiting)return;orbiting=true;const was=night;setNight(true);
+const c=POS.fountain;map.flyTo({center:c,zoom:18.5,pitch:70,duration:2500,essential:true});
+await sleep(2700);if(!orbiting)return;
+guideEl().m.setLngLat(c);guideSay("Welcome to the DSU fountain plaza at night.",true);
+const t0=performance.now(),b0=map.getBearing();
+(function f(now){
+if(!orbiting){return}
+const t=(now-t0)/1000;
+if(t>28){orbiting=false;setNight(was);guideHide();map.flyTo({center:POS.fountain,zoom:17,pitch:60,bearing:-20,duration:2500});return}
+map.jumpTo({center:c,bearing:b0+t*13,pitch:66+5*Math.sin(t*0.6),zoom:18.2+0.5*Math.sin(t*0.4)});
+requestAnimationFrame(f);
+})(performance.now());
+}
+/* Visitor route: the robot walks from the gate to the destination and gives directions */
+async function route(to){
+if(!ready||guiding||orbiting)return;guiding=true;
+if(PLM){PLM.remove();PLM=null}
+const a=POS.gate,b=POS[to],nm=ROOMS[to]?ROOMS[to].name:to,d=Math.round(mdist(a,b));
+const brg=Math.atan2((b[0]-a[0])*MXM,(b[1]-a[1])*MYM)*180/Math.PI;
+map.getSource("route").setData(EMPTY);guideEl().m.setLngLat(a);guideHide();
+map.flyTo({center:a,zoom:18.3,pitch:66,bearing:brg,duration:1800,essential:true});
+await sleep(1900);if(!guiding)return;
+guideSay("Hello! Follow me. "+nm+" is about "+d+" metres from the main gate.",true);await sleep(3600);if(!guiding)return;
+const t0=performance.now(),T=8000;let s1=false,s2=false;
+await new Promise(res=>{(function f(now){
+if(!guiding){res();return}
+const u=Math.min(1,(now-t0)/T),e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2,p=[a[0]+(b[0]-a[0])*e,a[1]+(b[1]-a[1])*e];
+guideEl().m.setLngLat(p);map.getSource("route").setData(ln([a,p]));map.jumpTo({center:p});
+if(u>0.1&&!s1){s1=true;guideSay("Walk straight ahead.",true)}
+if(u>0.55&&!s2){s2=true;guideSay("Keep going, about "+Math.round(d*0.45)+" metres to go.",true)}
+if(u<1)requestAnimationFrame(f);else res();
+})(performance.now())});
+if(guiding){guideSay("You have arrived at "+nm+"!",true);map.easeTo({bearing:brg+40,pitch:68,duration:3000})}
+guiding=false;setTimeout(guideHide,4500);
+}
+/* ---------- Hedges and the fountain pool (no water jets) ---------- */
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function buildScenery(n){
+const G=B3D.group,ids=Object.keys(ROOMS),R=rng(11),fo=loc(POS.fountain);
+/* hedges in front of each block */
+const hp=[];
+ids.forEach(id=>{const f=foot(id),cx=f.reduce((t,p)=>t+p[0],0)/f.length,cz=f.reduce((t,p)=>t+p[1],0)/f.length;
+f.forEach((a,i)=>{const b=f[(i+1)%f.length],len=Math.hypot(b[0]-a[0],b[1]-a[1]),k=Math.max(1,Math.floor(len/6));
+for(let j=0;j<k;j++){const u=(j+0.5)/k,x=a[0]+(b[0]-a[0])*u,z=a[1]+(b[1]-a[1])*u,dx=x-cx,dz=z-cz,dl=Math.hypot(dx,dz)||1;
+hp.push([x+dx/dl*4.5,z+dz/dl*4.5,0.9+R()*0.5,R()])}})});
+[-13,13].forEach(x=>[-6,6].forEach(z=>hp.push([fo[0]+x,fo[1]+z,1.2,R()])));
+const hm=n?new THREE.MeshBasicMaterial({color:0xffffff}):new THREE.MeshLambertMaterial({color:0xffffff});
+const H=new THREE.InstancedMesh(new THREE.SphereGeometry(2.2,10,8),hm,hp.length),d=new THREE.Object3D(),col=new THREE.Color();
+hp.forEach((p,i)=>{d.position.set(p[0],1.6,p[1]);d.scale.set(p[2],p[2]*0.85,p[2]);d.updateMatrix();H.setMatrixAt(i,d.matrix);
+col.setHSL(0.27+p[3]*0.07,0.5,n?0.13+p[3]*0.06:0.24+p[3]*0.1);H.setColorAt(i,col)});
+G.add(H);
+/* fountain: calm pool only */
+const pool=new THREE.Mesh(new THREE.BoxGeometry(20,1.2,8),new THREE.MeshLambertMaterial({color:n?0x7d786a:0xcfc7b0}));pool.position.set(fo[0],0.6,fo[1]);G.add(pool);
+const water=new THREE.Mesh(new THREE.BoxGeometry(17.5,0.3,5.5),new THREE.MeshBasicMaterial({color:n?0x0a1b33:0x2a5a82}));water.position.set(fo[0],1.25,fo[1]);G.add(water);
+B3D.anim=null;
+}
+</script></body></html>

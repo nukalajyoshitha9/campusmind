@@ -1,0 +1,66 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>CampusMind - Admin</title>
+<style>
+body{margin:0;font-family:system-ui,sans-serif;background:#0b1224;color:#fff}
+nav{display:flex;gap:6px;align-items:center;padding:10px 14px;background:#101a33;position:sticky;top:0;z-index:2}
+nav b{flex:1}nav a{color:#cbd5ff;text-decoration:none;padding:6px 12px;border-radius:8px;background:#1e2d57;font-size:14px}
+nav a.on{background:#2e9e3f;color:#fff}
+main{max-width:1000px;margin:auto;padding:12px}
+section{background:#101a33;border-radius:12px;padding:12px;margin:12px 0}
+h2{margin:0 0 8px;font-size:16px;color:#9db4ff}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.kpi{background:#16234a;border-radius:10px;padding:10px;text-align:center;font-size:12px;color:#b6c8f0}
+.kpi b{display:block;font-size:22px;color:#fff}.kpi.bad b{color:#ff6b6b}
+.card{background:#16234a;border-radius:10px;padding:9px 11px;margin:6px 0;font-size:14px;line-height:1.5}
+.card.bad{border:1px solid #ef4444;background:#3a1620}
+.tag{display:inline-block;border-radius:6px;padding:1px 8px;font-size:11px;font-weight:700;background:#475569}
+.tag.red{background:#ef4444}.tag.grn{background:#2e9e3f}
+.bar{height:10px;border-radius:5px;background:#22345f;margin-top:4px}.bar i{display:block;height:100%;border-radius:5px;background:#2e9e3f}
+.cams{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.cam{background:#000;border:2px solid #22345f;border-radius:10px;padding:8px;text-align:center;font-size:12px;min-height:90px}
+.cam.bad{border-color:#ef4444}.cam b{display:block;font-size:26px}
+button,select{border:0;border-radius:8px;padding:7px 11px;margin:3px 2px;font-size:13px;background:#2c4a8a;color:#fff}
+button.r{background:#c0392b}button.g{background:#2e9e3f}
+small{color:#9aa7c7}
+</style></head><body>
+<nav><b>CampusMind Admin</b><a href="/student">Student</a><a class="on" href="/admin">Admin</a><a href="/map">3D Map</a></nav>
+<main>
+<div class="kpis" id="kpi"></div>
+<section><h2>Energy leaks (lights ON, room empty)</h2><div id="leaks"></div></section>
+<section><h2>Power used by each block</h2><div id="pow"></div></section>
+<section><h2>Problems and emergencies reported by students</h2><div id="prob"></div></section>
+<section><h2>CCTV cameras</h2><div class="cams" id="cams"></div><small>Tiles show what the camera AI sees. Run vision.py for the live YOLO video window.</small></section>
+<section><h2>Class feedback from students</h2><div id="fb"></div></section>
+<section><h2>Demo controls</h2>
+<select id="sel"></select>
+<button class="r" onclick="act('/simulate/empty-room/')">Empty room, lights ON</button>
+<button onclick="act('/simulate/event/')">Start event</button>
+<button class="g" onclick="act('/action/switch-off/')">Auto switch-off</button><br>
+<button onclick="endC()">End all live classes</button>
+<button class="r" onclick="resetAll()">Reset demo</button><br>
+<small>Savings are simulated (Rs 8 per kWh assumption).</small></section>
+</main>
+<script>
+const $=i=>document.getElementById(i);
+const esc=s=>String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+async function j(u,o){return (await fetch(u,o)).json()}
+const post=(u,b)=>j(u,{method:"POST",headers:{"Content-Type":"application/json"},body:b?JSON.stringify(b):undefined});
+let CLS=[];
+async function tick(){
+ const [r,s,f,c]=await Promise.all([j("/rooms"),j("/stats"),j("/feedbacks"),j("/classes")]);CLS=c;
+ const R=Object.entries(r),tot=R.reduce((t,[,x])=>t+x.kw,0),leaks=R.filter(([,x])=>x.status==="leak");
+ const probs=f.filter(x=>x.kind==="problem"),cf=f.filter(x=>x.kind==="class"),openP=probs.filter(x=>x.status==="open");
+ const rated=cf.filter(x=>x.rating),avg=rated.length?(rated.reduce((t,x)=>t+x.rating,0)/rated.length).toFixed(1):"-";
+ $("kpi").innerHTML=`<div class="kpi">Total power<b>${tot.toFixed(1)} kW</b></div><div class="kpi ${leaks.length?"bad":""}">Energy leaks<b>${leaks.length}</b></div><div class="kpi ${openP.length?"bad":""}">Open problems<b>${openP.length}</b></div><div class="kpi">Energy saved<b>${s.kwh_saved.toFixed(1)} kWh</b></div><div class="kpi">Money saved<b>Rs ${s.rupees_saved}</b></div><div class="kpi">Avg class rating<b>${avg}</b></div>`;
+ $("leaks").innerHTML=leaks.length?leaks.map(([id,x])=>`<div class="card bad"><span class="tag red">LEAK</span> <b>${esc(x.name)}</b> &middot; ${x.kw} kW, 0 people, lights ON <button class="g" onclick="post('/action/switch-off/${id}').then(tick)">Auto switch-off</button></div>`).join(""):'<div class="card"><span class="tag grn">OK</span> No energy leaks right now.</div>';
+ $("pow").innerHTML=R.map(([id,x])=>`<div class="card">${esc(x.name)} &middot; <b>${x.kw} kW</b> &middot; ${x.people} people &middot; ${x.status}<div class="bar"><i style="width:${Math.min(100,x.kw/35*100)}%;background:${x.status==="leak"?"#ef4444":x.status==="event"?"#f5a623":"#2e9e3f"}"></i></div></div>`).join("");
+ $("prob").innerHTML=probs.length?probs.map(x=>`<div class="card ${x.urgent&&x.status==="open"?"bad":""}">${x.urgent?'<span class="tag red">EMERGENCY</span> ':""}<span class="tag">${esc(x.category)}</span> <b>${esc(r[x.room]?r[x.room].name:x.room)}</b> &middot; ${x.time} &middot; ${x.status}<br>${esc(x.text)}${x.status==="open"?` <button class="g" onclick="post('/feedback/${x.id}/resolve').then(tick)">Mark resolved</button>`:""}</div>`).join(""):'<div class="card">No problems reported.</div>';
+ $("cams").innerHTML=R.map(([id,x])=>`<div class="cam ${x.status==="leak"?"bad":""}"><span class="tag red">&#9679; LIVE</span> ${esc(x.name)}<b>${x.people}</b>people detected<br>${x.status==="leak"?"EMPTY, LIGHTS ON":"Lights "+(x.lights?"ON":"OFF")}</div>`).join("");
+ $("fb").innerHTML=cf.length?cf.map(x=>{const c=CLS.find(k=>k.id===x.class_id);return `<div class="card"><b>${esc(c?c.subject:"Class")}</b> &middot; ${esc(r[x.room]?r[x.room].name:x.room)} &middot; ${x.time}<br>${"&#9733;".repeat(x.rating||0)}${"&#9734;".repeat(5-(x.rating||0))}<br>${esc(x.text)}</div>`}).join(""):'<div class="card">No class feedback yet.</div>';
+ if(!$("sel").options.length)$("sel").innerHTML=R.map(([id,x])=>`<option value="${id}">${esc(x.name)}</option>`).join("");
+}
+async function act(p){await post(p+$("sel").value);tick()}
+async function endC(){for(const c of CLS)if(c.status==="live")await post("/demo/class/"+c.id+"/done");tick()}
+async function resetAll(){await post("/reset");await post("/demo/classes-reset");tick()}
+tick();setInterval(tick,2000);
+</script></body></html>

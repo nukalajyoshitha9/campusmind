@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CampusMind Copilot</title>
+<style>
+  body{margin:0;background:#0f172a;color:#e2e8f0;font-family:Segoe UI,Arial,sans-serif;padding:20px}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:#94a3b8;font-size:13px;margin-bottom:16px}
+  .chips button{background:#1e3a8a;color:#fff;border:0;border-radius:8px;padding:8px 12px;margin:0 6px 8px 0;cursor:pointer;font-size:13px}
+  .row{display:flex;gap:8px;margin-top:6px}
+  input{flex:1;padding:12px;border-radius:8px;border:1px solid #334155;background:#1e293b;color:#fff;font-size:15px}
+  .go{background:#16a34a;color:#fff;border:0;border-radius:8px;padding:0 20px;font-size:15px;cursor:pointer}
+  #box{margin-top:16px;background:#1e293b;border-radius:10px;padding:16px;min-height:90px;line-height:1.5;font-size:15px;white-space:pre-wrap}
+  #src{margin-top:8px;font-size:12px;color:#94a3b8}
+</style>
+</head>
+<body>
+<h1>CampusMind AI Copilot</h1>
+<div class="sub">Reads live room data, events, CCTV alerts and the action log</div>
+<div class="chips">
+  <button onclick="ask('Why did the power spike in Block B?')">Why did Block B spike?</button>
+  <button onclick="ask('Which rooms are wasting energy right now?')">Which rooms waste energy?</button>
+  <button onclick="ask('Write a short cost-saving policy draft for the dean.')">Draft policy for dean</button>
+</div>
+<div class="row">
+  <input id="q" placeholder="Ask the copilot..." onkeydown="if(event.key==='Enter')ask()">
+  <button class="go" onclick="ask()">Ask</button>
+</div>
+<div id="box">Ask a question above.</div>
+<div id="src"></div>
+<script>
+async function ask(text){
+  const q = text || document.getElementById('q').value.trim();
+  if(!q) return;
+  document.getElementById('q').value = q;
+  const box = document.getElementById('box');
+  box.textContent = 'Thinking...';
+  document.getElementById('src').textContent = '';
+  try{
+    const r = await fetch('/copilot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
+    const d = await r.json();
+    box.textContent = d.answer;
+    document.getElementById('src').textContent = 'Answered by: ' + d.source;
+  }catch(e){
+    box.textContent = 'Cannot reach the backend. Is uvicorn running?';
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+__pycache__/
+.env
+*.mp4
+index_backup.html
+yolov8n.pt
