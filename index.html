@@ -132,7 +132,7 @@ small{color:#9aa7c7}
 </div>
 </div>
 <script>
-const API = location.port==="8000" ? "" : "http://127.0.0.1:8000";
+const API = (["127.0.0.1","localhost"].includes(location.hostname) && location.port!=="8000") ? "http://127.0.0.1:8000" : "";
 const CENTER=[77.45027, 12.66171];
 /* ===== NAMES shown on the map (key = room id from the backend) ===== */
 const NAMES={"block-b":"CD Simer","admin":"School of Health Sciences & Pharmacy"};
